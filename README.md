@@ -15,8 +15,12 @@ Currently WIP with more features and freedoms planned.
 ## Examples
 ```forth
 123 123 + . (-- prints 246)
-: get1num , 48 - ; (get 1 char from stdin and converts it to a number)
-55 0 ! 45 0 @ + . (-- prints 100)
+
+: get1num , 48 - ; (gets 1 char from stdin and converts it to a number)
+
+55 0 ! (space does not matter)
+45 0 @ + . (-- prints 100)
+
 (input 6) get1num . (prints 6)
 ```
 

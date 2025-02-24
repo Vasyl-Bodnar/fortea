@@ -27,7 +27,7 @@ _main:
     sub sp, sp, #2048 
     sub sp, sp, #2048 ; current limit
 
-    sub w0, w0, #1
+    sub w0, w0, #1 ; check if we have more argv than filename
     cbnz w0, arg_ok
     adrp x0, arg_err@PAGE
     add x0, x0, arg_err@PAGEOFF
@@ -35,9 +35,9 @@ _main:
     b exit
 arg_ok:
     ldr x19, [x1, #8]
-    mov x20, sp ; using x20 instead of sp for stack (256 values)
-    add x21, sp, #2048 ; reserve 1024 or 64 values for definitions (16 bytes each)
-    add x22, sp, #1024 ; reserve 1024 or 128 values for local memory 
+    mov x20, sp ; using x20 instead of sp for stack (512 values)
+    add x21, sp, #2048 ; reserve 1024 or 128 values for definitions (16 bytes each)
+    add x22, sp, #1024 ; reserve 1024 or 256 values for local memory 
     mov x23, #0 ; definition count
     mov x24, #10 ; constant 10 for madd
     mov x25, #0 ; flags
