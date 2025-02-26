@@ -85,7 +85,8 @@ def_loop:
     b def_loop
 def_end:
     bfi x2, x3, #16, #48
-    stp x1, x2, [x21]
+    add x3, x21, x23, LSL#4
+    stp x1, x2, [x3]
     add x23, x23, #1
     b pick
 wrd:
