@@ -10,12 +10,10 @@ do_input:
     ret
 
 do_pop_print:
-    ldr x0, [x20, #-8]!
+    ldr x1, [x20, #-8]!
     stp fp, lr, [sp, #-16]!
-    str x0, [sp, #-16]!
+    str x1, [sp, #-16]!
 
-    adrp x0, pnum@PAGE
-    add x0, x0, pnum@PAGEOFF
     bl _printf 
 
     add sp, sp, #16
@@ -36,11 +34,11 @@ _main:
 arg_ok:
     ldr x19, [x1, #8]
     mov x20, sp ; using x20 instead of sp for stack (512 values)
-    add x21, sp, #2048 ; reserve 1024 or 128 values for definitions (16 bytes each)
-    add x22, sp, #1024 ; reserve 1024 or 256 values for local memory 
-    mov x23, #0 ; definition count
-    mov x24, #10 ; constant 10 for madd
-    mov x25, #0 ; flags
+    add x21, x20, #2048 ; reserve max 1792 or 224 values for definitions (16 bytes each)
+    mov x22, #0 ; definition count
+    mov x23, #10 ; constant 10 for madd
+    mov x24, #0 ; flags
+    add x25, x21, #1792; reserve 256 or 32 values for local vars (8 bytes each)
     ; x26 reserved for tmp x19 storage
 
 pick:
@@ -73,7 +71,7 @@ def_skip_space:
     b.eq def_skip_space
 def:
     ; x1 = string ref, x2 = id_len, x3 = total_len
-    mov x25, #1
+    mov x24, #1
     bl wrd
     mov x3, x2
 def_loop:
@@ -85,9 +83,9 @@ def_loop:
     b def_loop
 def_end:
     bfi x2, x3, #16, #48
-    add x3, x21, x23, LSL#4
+    add x3, x21, x22, LSL#4
     stp x1, x2, [x3]
-    add x23, x23, #1
+    add x22, x22, #1
     b pick
 wrd:
     ; x1 = string ref, x2 = len
@@ -108,15 +106,15 @@ wrd_loop:
     add w2, w2, #1
     b wrd_loop
 wrd_fin:
-    tbz x25, #0, wrd_find
-    mov x25, #0
+    tbz x24, #0, wrd_find
+    mov x24, #0
     ret
 wrd_find:
     ; x0 = defs num
     sub x19, x19, #1
     mov x0, #0
 wrd_find_loop:
-    cmp x0, x23
+    cmp x0, x22
     b.ge wrd_find_fin_fail
     add x4, x21, x0, LSL#4
     ldp x5, x6, [x4]
@@ -140,21 +138,31 @@ wrd_find_cmp_ret:
     add x0, x0, #1
     b wrd_find_loop
 wrd_find_fin:
-    mov x25, #2
+    mov x24, #2
     add x5, x5, x7
     mov x26, x19
     mov x19, x5
     b pick 
 wrd_find_fin_fail:
+    ldrb w0, [x1]
     cmp w2, #1
     b.eq wrd_find.1
     cmp w2, #2
     b.eq wrd_find.2
+    cmp w2, #3
+    b.eq wrd_find.3
+    cmp w2, #4
+    b.eq wrd_find.4
     b pick ; ERR neither undefined nor builtin word
 wrd_find.1:
-    ldrb w0, [x1]
     cmp w0, #0x21
     b.eq put
+    cmp w0, #0x23
+    b.eq res
+    cmp w0, #0x24
+    b.eq del
+    cmp w0, #0x25
+    b.eq loc
     cmp w0, #0x2a
     b.eq mul
     cmp w0, #0x2b
@@ -171,9 +179,18 @@ wrd_find.1:
     b.eq get
     b pick
 wrd_find.2:
-    ldrb w0, [x1], #1
     cmp w0, #0x69
     b.eq if
+    cmp w0, #0x2e
+    b.eq printx
+    b pick
+wrd_find.3:
+    cmp w0, #0x64
+    b.eq dup
+    b pick
+wrd_find.4:
+    cmp w0, #0x73
+    b.eq swap
     b pick
 comm:
     ldrb w0, [x19], #1
@@ -191,14 +208,14 @@ num_loop:
     cmp w0, #0x39
     b.gt num_fin
     sub x0, x0, #0x30
-    madd x1, x1, x24, x0
+    madd x1, x1, x23, x0
     b num_loop
 num_fin:
     sub x19, x19, #1
     str x1, [x20], #8
     b pick
 if:
-    ldrb w0, [x1]
+    ldrb w0, [x1, #1]
     cmp w0, #0x66
     b.ne pick
     ldp x0, x1, [x20, #-16]!
@@ -207,9 +224,37 @@ if:
     csel x0, x0, x1, gt
     str x0, [x20], #8
     b pick
+dup:
+    ldrb w0, [x1, #1]!
+    cmp w0, #0x75
+    b.ne pick
+    ldrb w0, [x1, #1]
+    cmp w0, #0x70
+    b.ne pick
+    ldr x0, [x20, #-8]
+    str x0, [x20], #8
+    b pick
+swap:
+    ldrb w0, [x1, #1]!
+    cmp w0, #0x77
+    b.ne pick
+    ldrb w0, [x1, #1]!
+    cmp w0, #0x61
+    b.ne pick
+    ldrb w0, [x1, #1]
+    cmp w0, #0x70
+    b.ne pick
+    ldp x0, x1, [x20, #-16]
+    stp x1, x0, [x20, #-16]
+    b pick
+loc:
+    ldr x0, [x20, #-8]
+    add x0, x25, x0, LSL#3
+    str x0, [x20, #-8]
+    b pick
 put:
     ldp x0, x1, [x20, #-16]!
-    str x0, [x22, x1, LSL#3]
+    str x0, [x1]
     b pick
 add:
     ldp x0, x1, [x20, #-16]!
@@ -233,13 +278,32 @@ div:
     b pick
 get:
     ldr x0, [x20, #-8]
-    ldr x0, [x22, x0, LSL#3]
+    ldr x0, [x0]
     str x0, [x20, #-8]
+    b pick
+res:
+    ldr x0, [x20, #-8]
+    bl _malloc
+    str x0, [x20, #-8]
+    b pick
+del:
+    ldr x0, [x20, #-8]!
+    bl _free
     b pick
 input:
     bl do_input
     b pick
 print:
+    adrp x0, pnum@PAGE
+    add x0, x0, pnum@PAGEOFF
+    bl do_pop_print
+    b pick
+printx:
+    ldrb w0, [x1, #1]
+    cmp w0, #0x78
+    b.ne pick
+    adrp x0, pxnum@PAGE
+    add x0, x0, pxnum@PAGEOFF
     bl do_pop_print
     b pick
 end_exec:
@@ -255,4 +319,5 @@ exit:
 
 .data
 pnum: .asciz "%lld\n"
+pxnum: .asciz "%p\n"
 arg_err: .asciz "Expected at least one argument"

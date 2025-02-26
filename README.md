@@ -5,7 +5,9 @@ Currently WIP with more features and freedoms planned.
 
 ## Features
 - Takes in positive 64 bit integers, though displays signed
-- Gives access to "local" variables, through forth-like `!` and `@`, but using index instead of address
+- Gives access to memory, through forth-like `!` and `@`.
+- Can reserve (malloc) and free memory with `#` and `$`.
+- Can use number and `%` to convert a number to a local variable address.
 - Is able to perform `+`, `-`, `*`, `/` operations
 - Also has `,` for a raw char input and `.` for a number output
 - Comments are opened and closed with`(` and `)`
@@ -18,10 +20,12 @@ Currently WIP with more features and freedoms planned.
 
 : get1num , 48 - ; (gets 1 char from stdin and converts it to a number)
 
-55 0 ! (space does not matter)
-45 0 @ + . (-- prints 100)
+55 0% ! (space does not matter)
+45 0% @ + . (-- prints 100)
 
 (input 6) get1num . (prints 6)
+
+2048 # $ (malloc and free)
 ```
 
 ## Compile and Run
@@ -35,11 +39,11 @@ Current implementation takes in one string input,
 which would then be run. For example `./fortea '1 1 + .'`
 
 ## Implementation Details
-Stack is used for everything.
+Stack is used for most things.
 It is the stack for operations, 
 and it also reserves space for local variables and definitions.
 
-Local variables are just an array using some stack space.
+Local variables are just an 8 byte array using some stack space.
 
 Definitions are the 8 byte reference to string (`: x 1 ; (...)` would be `x 1 ; (...)`), 
 2 byte length of id, and 6 byte length of everything until `;` for some potential uses. 
@@ -49,5 +53,5 @@ but it is efficient and effective without being annoying to implement.
 
 Words are looked up in the definitions, and if not, found from builtins.
 
-Currently Array and Definitions are reserved for 1024 bytes each, 
-which is 128 definitions and 256 local variables.
+Currently Array and Definitions are reserved for 256 and 1792 bytes respectively, 
+which is 32 local variables and 224 definitions.
