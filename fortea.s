@@ -6,7 +6,6 @@ prep_str:
     mov x8, x0
 prep_str_loop:
     ldrb w9, [x8], #1
-    cbz w9, exit
     cmp w9, w28
     b.ne prep_str_loop
     mov w9, #0
@@ -59,10 +58,8 @@ _main:
 
     sub w0, w0, #1 ; check if we have more argv than filename
     cbnz w0, arg_ok
-    adrp x0, arg_err@PAGE
-    add x0, x0, arg_err@PAGEOFF
-    bl _puts
-    b exit
+    mov x0, #0
+    b err
 arg_ok:
     ldr x19, [x1, #8]
     mov x20, sp ; using x20 instead of sp for stack (512 values)
@@ -77,7 +74,7 @@ arg_ok:
 
 pick:
     ldrb w0, [x19], #1
-    cbz w0, exit
+    cbz w0, end
     cmp w0, w28
     b.eq str
     cmp w0, #0x28 ; (
@@ -101,11 +98,14 @@ str:
     mov x1, x19
 str_loop:
     ldrb w0, [x19], #1
-    cbz w0, exit
+    cbz w0, str_err
     cmp w0, w28 
     b.ne str_loop
     str x1, [x20], #8
     b pick
+str_err:
+    mov w0, #1
+    b err
 def_skip_space:
     ldrb w0, [x19], #1
     cmp w0, #0x09
@@ -122,7 +122,7 @@ def:
 def_loop:
     ldrb w0, [x19], #1
     add x3, x3, #1
-    cbz w0, exit
+    cbz w0, def_err
     cmp w0, #0x3b
     b.eq def_end
     b def_loop
@@ -132,6 +132,9 @@ def_end:
     stp x1, x2, [x3]
     add x22, x22, #1
     b pick
+def_err:
+    mov w0, #2
+    b err
 wrd:
     ; x1 = string ref, x2 = len
     mov x1, x19
@@ -197,7 +200,7 @@ wrd_find_fin_fail:
     b.eq wrd_find.3
     cmp w2, #4
     b.eq wrd_find.4
-    b pick ; ERR neither undefined nor builtin word
+    b wrd_find_err
 wrd_find.1:
     ldrb w0, [x1]
     cmp w0, #0x21 ; !
@@ -222,7 +225,7 @@ wrd_find.1:
     b.eq div
     cmp w0, #0x40 ; @
     b.eq get
-    b pick
+    b wrd_find_err
 wrd_find.2:
     ldrh w0, [x1]
     mov w2, #0x2162
@@ -252,7 +255,7 @@ wrd_find.2:
     mov w2, #0x6624
     cmp w0, w2 ; $f
     b.eq close
-    b pick
+    b wrd_find_err
 wrd_find.3:
     ldrh w0, [x1]
     mov w2, #0x2c64
@@ -264,20 +267,26 @@ wrd_find.3:
     mov w2, #0x7564
     cmp w0, w2 ; du
     b.eq dup
-    b pick
+    b wrd_find_err
 wrd_find.4:
     ldrsw x0, [x1]
     mov w2, #0x7773
     movk w2, #0x7061, LSL#16
     cmp x0, x2 ; swap
     b.eq swap
-    b pick
+    b wrd_find_err
+wrd_find_err:
+    mov w0, #3
+    b err
 comm:
     ldrb w0, [x19], #1
-    cbz w0, exit
+    cbz w0, comm_err
     cmp w0, #0x29 ; )
     b.eq pick
     b comm
+comm_err:
+    mov w0, #4
+    b err
 num:
     sub x0, x0, #0x30 ; 0
     mov x1, x0
@@ -449,15 +458,37 @@ end_exec:
     mov x19, x26
     b pick
 
-exit:
+end:
     mov w0, #0
+    b exit
+err:
+    adrp x1, err_str@PAGE
+    add x1, x1, err_str@PAGEOFF
+    ldr x0, [x1, x0, LSL#3]
+    bl _puts
+    mov w0, #1
+exit:
     add sp, sp, #2048
     add sp, sp, #2048
     ldp fp, lr, [sp], #16
     ret
 
-.data
+.section STR,"S"
+.align 4
 pnum: .asciz "%lld\n"
 pxnum: .asciz "%p\n"
 pstr: .asciz "%s\n"
-arg_err: .asciz "Expected at least one argument"
+err_str.0: .asciz "Expected at least one argument"
+err_str.1: .asciz "String was not ended"
+err_str.2: .asciz "Definition was not ended"
+err_str.3: .asciz "No such word was not found"
+err_str.4: .asciz "Comment was not ended"
+
+.section REF,""
+.align 4
+err_str: 
+    .quad err_str.0
+    .quad err_str.1
+    .quad err_str.2
+    .quad err_str.3
+    .quad err_str.4
