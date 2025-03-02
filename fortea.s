@@ -2,10 +2,42 @@
 .global _main
 .align 4
 
-do_input:
+prep_str:
+    mov x8, x0
+prep_str_loop:
+    ldrb w9, [x8], #1
+    cbz w9, exit
+    cmp w9, w28
+    b.ne prep_str_loop
+    mov w9, #0
+    strb w9, [x8, #-1]
+    ret
+
+fix_str:
+    mov x8, x0
+fix_str_loop:
+    ldrb w9, [x8], #1
+    cbz w9, fix_str_fin
+    b fix_str_loop
+fix_str_fin:
+    mov w9, w28
+    strb w9, [x8, #-1]
+    ret
+
+do_input_byte:
     stp fp, lr, [sp, #-16]!
     bl _getchar 
     str x0, [x20], #8
+    ldp fp, lr, [sp], #16
+    ret
+
+do_input_quad:
+    stp fp, lr, [sp, #-16]!
+    mov x0, #0
+    mov x1, x20
+    mov x2, #8
+    bl _read 
+    add x20, x20, #8
     ldp fp, lr, [sp], #16
     ret
 
@@ -40,27 +72,40 @@ arg_ok:
     mov x24, #0 ; flags
     add x25, x21, #1792; reserve 256 or 32 values for local vars (8 bytes each)
     ; x26 reserved for tmp x19 storage
+    ; x27 reserved for values surviving function calls
+    mov w28, #0x22 ; " or 0x27 = ', for lldb
 
 pick:
     ldrb w0, [x19], #1
     cbz w0, exit
-    cmp w0, #0x28
+    cmp w0, w28
+    b.eq str
+    cmp w0, #0x28 ; (
     b.eq comm
-    cmp w0, #0x3a
+    cmp w0, #0x3a ; :
     b.eq def_skip_space
-    cmp w0, #0x3b
+    cmp w0, #0x3b ; ;
     b.eq end_exec
-    cmp w0, #0x09
+    cmp w0, #0x09 ; tab
     b.eq pick
-    cmp w0, #0x0a
+    cmp w0, #0x0a ; nl
     b.eq pick
-    cmp w0, #0x20
+    cmp w0, #0x20 ; space
     b.eq pick
-    cmp w0, #0x39
+    cmp w0, #0x39 ; 9
     b.gt wrd
-    cmp w0, #0x30
+    cmp w0, #0x30 ; 0
     b.lt wrd
     b num
+str:
+    mov x1, x19
+str_loop:
+    ldrb w0, [x19], #1
+    cbz w0, exit
+    cmp w0, w28 
+    b.ne str_loop
+    str x1, [x20], #8
+    b pick
 def_skip_space:
     ldrb w0, [x19], #1
     cmp w0, #0x09
@@ -144,7 +189,6 @@ wrd_find_fin:
     mov x19, x5
     b pick 
 wrd_find_fin_fail:
-    ldrb w0, [x1]
     cmp w2, #1
     b.eq wrd_find.1
     cmp w2, #2
@@ -155,59 +199,95 @@ wrd_find_fin_fail:
     b.eq wrd_find.4
     b pick ; ERR neither undefined nor builtin word
 wrd_find.1:
-    cmp w0, #0x21
+    ldrb w0, [x1]
+    cmp w0, #0x21 ; !
     b.eq put
-    cmp w0, #0x23
+    cmp w0, #0x23 ; #
     b.eq res
-    cmp w0, #0x24
+    cmp w0, #0x24 ; $
     b.eq del
-    cmp w0, #0x25
+    cmp w0, #0x25 ; %
     b.eq loc
-    cmp w0, #0x2a
+    cmp w0, #0x2a ; *
     b.eq mul
-    cmp w0, #0x2b
+    cmp w0, #0x2b ; +
     b.eq add
-    cmp w0, #0x2c
+    cmp w0, #0x2c ; ,
     b.eq input
-    cmp w0, #0x2d
+    cmp w0, #0x2d ; -
     b.eq sub
-    cmp w0, #0x2e
+    cmp w0, #0x2e ; .
     b.eq print
-    cmp w0, #0x2f
+    cmp w0, #0x2f ; /
     b.eq div
-    cmp w0, #0x40
+    cmp w0, #0x40 ; @
     b.eq get
     b pick
 wrd_find.2:
-    cmp w0, #0x69
+    ldrh w0, [x1]
+    mov w2, #0x2162
+    cmp w0, w2 ; b!
+    b.eq put_b
+    mov w2, #0x4062
+    cmp w0, w2 ; b@
+    b.eq get_b
+    mov w2, #0x662c
+    cmp w0, w2 ; ,f
+    b.eq readf
+    mov w2, #0x662e
+    cmp w0, w2 ; .f
+    b.eq writef
+    mov w2, #0x6669
+    cmp w0, w2 ; if
     b.eq if
-    cmp w0, #0x2e
-    b.eq printx
+    mov w2, #0x2e73
+    cmp w0, w2 ; s.
+    b.eq print_s
+    mov w2, #0x2e78
+    cmp w0, w2 ; x.
+    b.eq print_x
+    mov w2, #0x6623
+    cmp w0, w2 ; #f
+    b.eq open
+    mov w2, #0x6624
+    cmp w0, w2 ; $f
+    b.eq close
     b pick
 wrd_find.3:
-    cmp w0, #0x64
+    ldrh w0, [x1]
+    mov w2, #0x2c64
+    cmp w0, w2 ; s,
+    b.eq readf_s
+    mov w2, #0x2e64
+    cmp w0, w2 ; s.
+    b.eq writef_s
+    mov w2, #0x7564
+    cmp w0, w2 ; du
     b.eq dup
     b pick
 wrd_find.4:
-    cmp w0, #0x73
+    ldrsw x0, [x1]
+    mov w2, #0x7773
+    movk w2, #0x7061, LSL#16
+    cmp x0, x2 ; swap
     b.eq swap
     b pick
 comm:
     ldrb w0, [x19], #1
     cbz w0, exit
-    cmp w0, #0x29
+    cmp w0, #0x29 ; )
     b.eq pick
     b comm
 num:
-    sub x0, x0, #0x30
+    sub x0, x0, #0x30 ; 0
     mov x1, x0
 num_loop:
     ldrb w0, [x19], #1
-    cmp w0, #0x30
-    b.lt num_fin
-    cmp w0, #0x39
+    cmp w0, #0x39 ; 9
     b.gt num_fin
-    sub x0, x0, #0x30
+    cmp w0, #0x30 ; 0
+    b.lt num_fin
+    sub x0, x0, #0x30 ; 0
     madd x1, x1, x23, x0
     b num_loop
 num_fin:
@@ -215,9 +295,6 @@ num_fin:
     str x1, [x20], #8
     b pick
 if:
-    ldrb w0, [x1, #1]
-    cmp w0, #0x66
-    b.ne pick
     ldp x0, x1, [x20, #-16]!
     ldr x2, [x20, #-8]!
     cmp x2, #0
@@ -225,25 +302,13 @@ if:
     str x0, [x20], #8
     b pick
 dup:
-    ldrb w0, [x1, #1]!
-    cmp w0, #0x75
-    b.ne pick
-    ldrb w0, [x1, #1]
-    cmp w0, #0x70
+    ldrb w0, [x1, #2]
+    cmp w0, #0x70 ; p
     b.ne pick
     ldr x0, [x20, #-8]
     str x0, [x20], #8
     b pick
 swap:
-    ldrb w0, [x1, #1]!
-    cmp w0, #0x77
-    b.ne pick
-    ldrb w0, [x1, #1]!
-    cmp w0, #0x61
-    b.ne pick
-    ldrb w0, [x1, #1]
-    cmp w0, #0x70
-    b.ne pick
     ldp x0, x1, [x20, #-16]
     stp x1, x0, [x20, #-16]
     b pick
@@ -255,6 +320,10 @@ loc:
 put:
     ldp x0, x1, [x20, #-16]!
     str x0, [x1]
+    b pick
+put_b:
+    ldp x0, x1, [x20, #-16]!
+    strb w0, [x1]
     b pick
 add:
     ldp x0, x1, [x20, #-16]!
@@ -281,6 +350,37 @@ get:
     ldr x0, [x0]
     str x0, [x20, #-8]
     b pick
+get_b:
+    ldr x0, [x20, #-8]
+    ldrb w0, [x0]
+    str x0, [x20, #-8]
+    b pick
+input:
+    bl do_input_quad
+    b pick
+input_b:
+    bl do_input_byte
+    b pick
+print:
+    adrp x0, pnum@PAGE
+    add x0, x0, pnum@PAGEOFF
+    bl do_pop_print
+    b pick
+print_s:
+    ldr x0, [x20, #-8]
+    mov x27, x0
+    bl prep_str
+    adrp x0, pstr@PAGE
+    add x0, x0, pstr@PAGEOFF
+    bl do_pop_print
+    mov x0, x27
+    bl fix_str
+    b pick
+print_x:
+    adrp x0, pxnum@PAGE
+    add x0, x0, pxnum@PAGEOFF
+    bl do_pop_print
+    b pick
 res:
     ldr x0, [x20, #-8]
     bl _malloc
@@ -290,21 +390,60 @@ del:
     ldr x0, [x20, #-8]!
     bl _free
     b pick
-input:
-    bl do_input
+open:
+    ldp x1, x0, [x20, #-16]!
+    ldr x2, [x20, #-8]
+    mov x27, x0
+    bl prep_str
+    bl _open
+    str x0, [x20, #-8]
+    mov x0, x27
+    bl fix_str
     b pick
-print:
-    adrp x0, pnum@PAGE
-    add x0, x0, pnum@PAGEOFF
-    bl do_pop_print
+close:
+    ldr x0, [x20, #-8]!
+    bl _close
     b pick
-printx:
-    ldrb w0, [x1, #1]
-    cmp w0, #0x78
+writef:
+    ldp x1, x0, [x20, #-16]!
+    ldr x2, [x20, #-8]!
+    bl _write 
+    ; returns bytes written
+    b pick
+writef_s:
+    ldrb w0, [x1, #2]
+    cmp w0, #0x66 ; f
     b.ne pick
-    adrp x0, pxnum@PAGE
-    add x0, x0, pxnum@PAGEOFF
-    bl do_pop_print
+    ldp x1, x3, [x20, #-16]!
+    mov x0, x1
+    bl prep_str
+    mov x0, x3
+    sub x2, x8, x1
+    bl _write 
+    ; returns bytes written
+    mov x0, x1
+    bl fix_str
+    b pick
+readf:
+    ldp x1, x0, [x20, #-16]!
+    ldr x2, [x20, #-8]!
+    bl _read 
+    ; returns bytes read
+    b pick
+readf_s:
+    ldrb w0, [x1, #2]
+    cmp w0, #0x66 ; f
+    b.ne pick
+    ldp x1, x0, [x20, #-16]!
+    mov x3, x0
+    mov x0, x1
+    bl prep_str
+    mov x0, x3
+    sub x2, x8, x1
+    bl _read 
+    ; returns bytes read
+    mov x0, x1
+    bl fix_str
     b pick
 end_exec:
     mov x19, x26
@@ -320,4 +459,5 @@ exit:
 .data
 pnum: .asciz "%lld\n"
 pxnum: .asciz "%p\n"
+pstr: .asciz "%s\n"
 arg_err: .asciz "Expected at least one argument"

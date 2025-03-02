@@ -4,15 +4,20 @@ Forth-like stack programming language interpreter written in M4 arm assembly.
 Currently WIP with more features and freedoms planned.
 
 ## Features
-- Takes in positive 64 bit integers, though displays signed
-- Gives access to memory, through forth-like `!` and `@`.
-- Can reserve (malloc) and free memory with `#` and `$`.
-- Can use number and `%` to convert a number to a local variable address.
+- Reads in positive 64 bit integers and strings
+- Gives access to memory (quad-aligned), through forth-like `!` and `@`
+- Can use `b!` and `b@` for bytes
+- Local variables can be accessed by using the address
+- Can reserve (malloc) and free memory with `#` and `$`
+- Can use open(), close(), write(), read(), through `#f`, `$f`, `.f`, and `,f` commands
+- Also provides `s,f` and `s.f` for strings
+- Can use number and `%` to convert a number to a local variable address
 - Is able to perform `+`, `-`, `*`, `/` operations
-- Also has `,` for a raw char input and `.` for a number output
+- Also has `,` for a raw char input and `.` for a number output (signed), `x.` for hex/pointers, `s.` for string
 - Comments are opened and closed with`(` and `)`
 - Can use `if` with truth being defined C-style (0 = false, else true)
-- Can define new words, which also enables recursion.
+- `dup` and `swap` are also provided
+- Can define new words, which also enables recursion
 
 ## Examples
 ```forth
@@ -27,6 +32,8 @@ Currently WIP with more features and freedoms planned.
 
 2048 # $ (malloc and free)
 ```
+
+You can also see the example files.
 
 ## Compile and Run
 Makefile should provide everything essential to get this on Mac, 
@@ -55,3 +62,8 @@ Words are looked up in the definitions, and if not, found from builtins.
 
 Currently Array and Definitions are reserved for 256 and 1792 bytes respectively, 
 which is 32 local variables and 224 definitions.
+
+Strings are references to file. 
+Printing them with printf utilizes the fact that they end with `"` 
+which can be replaced by null. 
+At the moment with minimal checking, this can be abused.
