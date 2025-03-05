@@ -160,16 +160,15 @@ wrd_fin:
 wrd_find:
     ; x0 = defs num
     sub x19, x19, #1
-    mov x0, #0
+    mov x0, x22
 wrd_find_loop:
-    cmp x0, x22
-    b.ge wrd_find_fin_fail
+    cbz x0, wrd_find_fin_fail
+    sub x0, x0, #1
     add x4, x21, x0, LSL#4
     ldp x5, x6, [x4]
     bfi x7, x6, #0, #16
     cmp w2, w7
     b.eq wrd_find_cmp
-    add x0, x0, #1
     b wrd_find_loop
 wrd_find_cmp:
     mov w8, #0
@@ -183,7 +182,6 @@ wrd_find_cmp_loop:
     b.eq wrd_find_fin
     b wrd_find_cmp_loop
 wrd_find_cmp_ret:
-    add x0, x0, #1
     b wrd_find_loop
 wrd_find_fin:
     mov x24, #2
