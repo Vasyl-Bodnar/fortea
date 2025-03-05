@@ -6,7 +6,7 @@ prep_str:
     mov x8, x0
 prep_str_loop:
     ldrb w9, [x8], #1
-    cmp w9, w28
+    cmp w9, #0x22
     b.ne prep_str_loop
     mov w9, #0
     strb w9, [x8, #-1]
@@ -19,7 +19,7 @@ fix_str_loop:
     cbz w9, fix_str_fin
     b fix_str_loop
 fix_str_fin:
-    mov w9, w28
+    mov w9, #0x22
     strb w9, [x8, #-1]
     ret
 
@@ -53,6 +53,8 @@ do_pop_print:
 
 _main:
     stp fp, lr, [sp, #-16]!
+    stp x0, x1, [sp, #-16]!
+    mov x28, sp
     sub sp, sp, #2048 
     sub sp, sp, #2048 ; current limit
 
@@ -70,12 +72,11 @@ arg_ok:
     add x25, x21, #1792; reserve 256 or 32 values for local vars (8 bytes each)
     ; x26 reserved for tmp x19 storage
     ; x27 reserved for values surviving function calls
-    mov w28, #0x22 ; " or 0x27 = ', for lldb
 
 pick:
     ldrb w0, [x19], #1
     cbz w0, end
-    cmp w0, w28
+    cmp w0, #0x22
     b.eq str
     cmp w0, #0x28 ; (
     b.eq comm
@@ -99,7 +100,7 @@ str:
 str_loop:
     ldrb w0, [x19], #1
     cbz w0, str_err
-    cmp w0, w28 
+    cmp w0, #0x22 
     b.ne str_loop
     str x1, [x20], #8
     b pick
@@ -209,6 +210,8 @@ wrd_find.1:
     b.eq del
     cmp w0, #0x25 ; %
     b.eq loc
+    cmp w0, #0x26 ; &
+    b.eq get_arg
     cmp w0, #0x2a ; *
     b.eq mul
     cmp w0, #0x2b ; +
@@ -247,6 +250,9 @@ wrd_find.2:
     mov w2, #0x2e78
     cmp w0, w2 ; x.
     b.eq print_x
+    mov w2, #0x2626
+    cmp w0, w2 ; &&
+    b.eq arg_count
     mov w2, #0x6623
     cmp w0, w2 ; #f
     b.eq open
@@ -411,6 +417,17 @@ close:
     ldr x0, [x20, #-8]!
     bl _close
     b pick
+arg_count:
+    ldr x0, [x28]
+    str x0, [x20], #8
+    b pick
+get_arg: ; getting itself at 1 & will cause the program to break
+    ldr x1, [x28, #8]
+    ldr x0, [x20, #-8]
+    ldr x0, [x1, x0, LSL#3]
+    bl fix_str
+    str x0, [x20, #-8]
+    b pick
 writef:
     ldp x1, x0, [x20, #-16]!
     ldr x2, [x20, #-8]!
@@ -468,6 +485,7 @@ err:
 exit:
     add sp, sp, #2048
     add sp, sp, #2048
+    add sp, sp, #16
     ldp fp, lr, [sp], #16
     ret
 
