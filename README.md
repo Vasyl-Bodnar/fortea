@@ -5,19 +5,23 @@ Currently WIP with more features and freedoms planned.
 
 ## Features
 - Reads in positive 64 bit integers and strings
-- Gives access to memory (quad-aligned), through forth-like `!` and `@`
+- Gives access to memory (quad-sized), through forth-like `!` and `@`
 - Can use `b!` and `b@` for bytes
 - Local variables can be accessed by using the address
+- Can use `&` to convert an number into argument string (note that 2nd argument is the input so you should not use it)
 - Can reserve (malloc) and free memory with `#` and `$`
 - Can use open(), close(), write(), read(), through `#f`, `$f`, `.f`, and `,f` commands
 - Also provides `s,f` and `s.f` for strings
-- Can use number and `%` to convert a number to a local variable address
+- Additionally, you can use `cs` and `sc` for converting to and from c-strings, as well as `cs,f`, `cs.f` for c-stirng writing.
+- Can use number and `%` to convert a number to a local variable address indexed by quad size
 - Is able to perform `+`, `-`, `*`, `/` operations
 - Also has `,` for a raw char input and `.` for a number output (signed), `x.` for hex/pointers, `s.` for string
 - Comments are opened and closed with`(` and `)`
 - Can use `if` with truth being defined C-style (0 = false, else true)
+- You can use `run` to run a word from a string (e.g. `1 2 "swap" run`)
 - `dup` and `swap` are also provided
 - Can define new words, which also enables recursion
+- `exit` can be used to exit with some error code
 
 ## Examples
 ```forth
@@ -31,6 +35,10 @@ Currently WIP with more features and freedoms planned.
 (input 6) get1num . (prints 6)
 
 2048 # $ (malloc and free)
+
+0 exit (exit call for early exit)
+
+2 2 + (never runs)
 ```
 
 You can also see the example files.

@@ -2,6 +2,23 @@
 .global _main
 .align 4
 
+cnt_str:
+    mov x8, x0
+cnt_str_loop:
+    ldrb w9, [x8], #1
+    cmp w9, #0x22
+    b.ne cnt_str_loop
+    sub x0, x8, x0
+    ret
+
+cnt_strnull:
+    mov x8, x0
+cnt_strnull_loop:
+    ldrb w9, [x8], #1
+    cbnz w9, cnt_str_loop
+    sub x0, x8, x0
+    ret
+
 prep_str:
     mov x8, x0
 prep_str_loop:
@@ -150,6 +167,8 @@ wrd_loop:
     b.eq wrd_fin
     cmp w0, #0x20
     b.eq wrd_fin
+    cmp w0, #0x22
+    b.eq wrd_fin
     cmp w0, #0x28
     b.eq wrd_fin
     add w2, w2, #1
@@ -244,6 +263,12 @@ wrd_find.2:
     mov w2, #0x6669
     cmp w0, w2 ; if
     b.eq if
+    mov w2, #0x7363
+    cmp w0, w2 ; cs
+    b.eq to_cs
+    mov w2, #0x6373
+    cmp w0, w2 ; sc
+    b.eq from_cs
     mov w2, #0x2e73
     cmp w0, w2 ; s.
     b.eq print_s
@@ -271,13 +296,24 @@ wrd_find.3:
     mov w2, #0x7564
     cmp w0, w2 ; du
     b.eq dup
+    mov w2, #0x7572
+    cmp w0, w2 ; ru
+    b.eq run
     b wrd_find_err
 wrd_find.4:
     ldrsw x0, [x1]
-    mov w2, #0x7773
-    movk w2, #0x7061, LSL#16
+    mov w2, #0x7773 ; ws
+    movk w2, #0x7061, LSL#16 ; pa
     cmp x0, x2 ; swap
     b.eq swap
+    mov w2, #0x7363 ; sc
+    movk w2, #0x2e66, LSL#16 ; f.
+    cmp x0, x2 ; cs.f
+    b.eq writef_cs
+    mov w2, #0x7865 ; xe
+    movk w2, #0x7469, LSL#16 ; ti
+    cmp x0, x2 ; exit
+    b.eq exit_wrd
     b wrd_find_err
 wrd_find_err:
     mov w0, #3
@@ -317,7 +353,7 @@ if:
 dup:
     ldrb w0, [x1, #2]
     cmp w0, #0x70 ; p
-    b.ne pick
+    b.ne wrd_find_err
     ldr x0, [x20, #-8]
     str x0, [x20], #8
     b pick
@@ -423,14 +459,45 @@ arg_count:
     b pick
 get_arg: ; getting itself at 1 & will cause the program to break
     ldr x1, [x28, #8]
+    cbz x1, get_arg_z
     ldr x0, [x20, #-8]
     ldr x0, [x1, x0, LSL#3]
-    bl fix_str
     str x0, [x20, #-8]
+    b pick
+get_arg_z:
+    str x1, [x20, #-8]
+    b pick
+run:
+    ldrb w0, [x1, #2]
+    cmp w0, #0x6e ; n
+    b.ne wrd_find_err
+    ldr x1, [x20, #-8]!
+    mov x0, x1
+    bl cnt_str
+    sub w2, w0, #1
+    cbz w2, pick
+    add x19, x19, #1
+    b wrd_find
+to_cs:
+    ldr x0, [x20, #-8]
+    bl fix_str
+    b pick
+from_cs:
+    ldr x0, [x20, #-8]
+    bl prep_str
     b pick
 writef:
     ldp x1, x0, [x20, #-16]!
     ldr x2, [x20, #-8]!
+    bl _write 
+    ; returns bytes written
+    b pick
+writef_cs:
+    ldp x1, x3, [x20, #-16]!
+    mov x0, x1
+    bl cnt_strnull
+    mov x0, x3
+    sub x2, x8, x1
     bl _write 
     ; returns bytes written
     b pick
@@ -469,6 +536,9 @@ readf_s:
     mov x0, x1
     bl fix_str
     b pick
+exit_wrd:
+    ldr x0, [x20, #-8]
+    b exit
 end_exec:
     mov x19, x26
     b pick
@@ -497,7 +567,7 @@ pstr: .asciz "%s\n"
 err_str.0: .asciz "Expected at least one argument"
 err_str.1: .asciz "String was not ended"
 err_str.2: .asciz "Definition was not ended"
-err_str.3: .asciz "No such word was not found"
+err_str.3: .asciz "No such word was found"
 err_str.4: .asciz "Comment was not ended"
 
 .section REF,""
