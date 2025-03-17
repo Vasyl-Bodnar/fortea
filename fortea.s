@@ -73,6 +73,8 @@ _main:
     stp x0, x1, [sp, #-16]!
     mov x28, sp
     sub sp, sp, #2048 
+    sub sp, sp, #2048 
+    sub sp, sp, #2048
     sub sp, sp, #2048 ; current limit
 
     sub w0, w0, #1 ; check if we have more argv than filename
@@ -81,13 +83,14 @@ _main:
     b err
 arg_ok:
     ldr x19, [x1, #8]
-    mov x20, sp ; using x20 instead of sp for stack (512 values)
+    mov x20, sp ; reserve 4096 for stack
+    add x26, x20, #2048 
+    add x26, x26, #2048 ; reserve 2048 for function returns
     add x21, x20, #2048 ; reserve max 1792 or 224 values for definitions (16 bytes each)
     mov x22, #0 ; definition count
     mov x23, #10 ; constant 10 for madd
     mov x24, #0 ; flags
     add x25, x21, #1792; reserve 256 or 32 values for local vars (8 bytes each)
-    ; x26 reserved for tmp x19 storage
     ; x27 reserved for values surviving function calls
 
 pick:
@@ -206,7 +209,7 @@ wrd_find_cmp_ret:
 wrd_find_fin:
     mov x24, #2
     add x5, x5, x7
-    mov x26, x19
+    str x19, [x26], #8
     mov x19, x5
     b pick 
 wrd_find_fin_fail:
@@ -540,7 +543,7 @@ exit_wrd:
     ldr x0, [x20, #-8]
     b exit
 end_exec:
-    mov x19, x26
+    ldr x19, [x26, #-8]!
     b pick
 
 end:
@@ -553,6 +556,8 @@ err:
     bl _puts
     mov w0, #1
 exit:
+    add sp, sp, #2048
+    add sp, sp, #2048
     add sp, sp, #2048
     add sp, sp, #2048
     add sp, sp, #16
